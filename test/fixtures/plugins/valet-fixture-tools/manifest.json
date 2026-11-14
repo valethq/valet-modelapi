@@ -1,0 +1,9 @@
+{
+  "schema": 1,
+  "id": "valet-fixture-tools",
+  "name": "Fixture tools",
+  "version": "0.1.0",
+  "valet": "^0.1.0",
+  "main": "./index.ts",
+  "provides": ["tools@1"]
+}

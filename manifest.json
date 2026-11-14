@@ -1,0 +1,55 @@
+{
+  "schema": 1,
+  "id": "valet-modelapi",
+  "name": "Model APIs",
+  "version": "0.1.0",
+  "description": "inference@1 model providers for OpenAI-compatible and Anthropic Messages-compatible APIs.",
+  "valet": "^0.1.0",
+  "main": "./src/index.ts",
+  "provides": ["inference@1"],
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "endpoints": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["id", "api", "baseUrl"],
+          "additionalProperties": false,
+          "properties": {
+            "id": { "type": "string" },
+            "label": { "type": "string" },
+            "api": { "type": "string", "enum": ["openai", "anthropic"] },
+            "baseUrl": { "type": "string" },
+            "apiKeySecret": { "type": "string" },
+            "auth": { "type": "string", "enum": ["bearer", "x-api-key"] },
+            "headers": { "type": "object" },
+            "body": { "type": "object" },
+            "promptCache": { "type": "boolean" },
+            "utilityModel": { "type": "string" },
+            "retries": { "type": "number" },
+            "models": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["id"],
+                "additionalProperties": false,
+                "properties": {
+                  "id": { "type": "string" },
+                  "name": { "type": "string" },
+                  "contextWindow": { "type": "number" },
+                  "maxOutputTokens": { "type": "number" },
+                  "input": { "type": "array", "items": { "type": "string", "enum": ["text", "image"] } },
+                  "reasoning": { "type": "boolean" },
+                  "efforts": { "type": "array", "items": { "type": "string" } },
+                  "body": { "type": "object" }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
