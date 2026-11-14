@@ -5,8 +5,9 @@ import { join } from "node:path";
 import { fakeServer, type Json, sse } from "./fake-server";
 
 // Boots the real kernel with valet-agent and valet-contextmanager; this plugin points at a fake API.
-const CLI = "/home/user/valet/valet-core/packages/core/src/cli.ts";
-const VALET = "/home/user/valet";
+const CORE = process.env.VALET_CORE_DIR ?? join(import.meta.dir, "..", "..", "valet-core");
+const CLI = join(CORE, "packages/core/src/cli.ts");
+const VALET = join(import.meta.dir, "..", "..");
 const ROOT = join(import.meta.dir, "..");
 const AUTH = { authorization: "Bearer tok", "content-type": "application/json" };
 
