@@ -100,22 +100,41 @@ test("encodes tool turns, replays reasoning_content and moves tool images to a u
   ]);
 });
 
-test("effort suffix becomes reasoning_effort; endpoint and model body merge in", async () => {
+test("effort and fast options become reasoning_effort and service_tier; body merges in", async () => {
   const { p } = provider({
     api: "openai",
     baseUrl: srv.url,
     body: { temperature: 0.2, extra: { a: 1 } },
-    models: [{ id: "gpt-x", efforts: ["low", "high"], body: { extra: { b: 2 } } }],
+    models: [
+      {
+        id: "gpt-x",
+        efforts: ["low", "high"],
+        defaultEffort: "low",
+        fast: true,
+        body: { extra: { b: 2 } },
+      },
+    ],
   });
-  expect((await p.listModels()).map((m) => [m.id, m.reasoning])).toEqual([
-    ["gpt-x-low", true],
-    ["gpt-x-high", true],
+  expect(await p.listModels()).toEqual([
+    expect.objectContaining({
+      id: "gpt-x",
+      reasoning: true,
+      efforts: ["low", "high"],
+      defaultEffort: "low",
+      fast: true,
+    }),
   ]);
   srv.reply(sse([chunk({ content: "x" }, "stop"), "[DONE]"]));
-  await collect(p.stream(request([user("q")], { model: "gpt-x-high" }), new AbortController().signal));
+  await collect(
+    p.stream(
+      request([user("q")], { model: "gpt-x", effort: "high", fast: true }),
+      new AbortController().signal,
+    ),
+  );
   expect(srv.requests.at(-1)?.body).toMatchObject({
     model: "gpt-x",
     reasoning_effort: "high",
+    service_tier: "fast",
     temperature: 0.2,
     extra: { a: 1, b: 2 },
   });

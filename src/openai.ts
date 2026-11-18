@@ -1,7 +1,7 @@
 import type { InferenceChunk, InferenceRequest, ModelContent, ModelMessage } from "@valethq/sdk";
 import type { Adapter } from "./adapter";
 import type { EndpointConfig } from "./config";
-import type { ResolvedModel } from "./models";
+import { type ResolvedModel, wireOptions } from "./models";
 import { ReplayCache } from "./replay";
 import type { SseEvent } from "./sse";
 import { type BlobReader, deepMerge, newCallId, parseArgs } from "./util";
@@ -80,7 +80,7 @@ export function openaiAdapter(ep: EndpointConfig, readBlob: BlobReader): Adapter
   }
 
   async function build(req: InferenceRequest, model: ResolvedModel): Promise<Record<string, unknown>> {
-    const effort = model.effort ?? (req.reasoning && req.reasoning !== "off" ? req.reasoning : undefined);
+    const { effort, fast } = wireOptions(req, model);
     const body: Record<string, unknown> = {
       model: model.apiModel,
       messages: await wireMessages(req.system, req.messages),
@@ -92,7 +92,13 @@ export function openaiAdapter(ep: EndpointConfig, readBlob: BlobReader): Adapter
         type: "function",
         function: { name: t.name, description: t.description, parameters: t.inputSchema },
       }));
-    return deepMerge(body, effort ? { reasoning_effort: effort } : undefined, ep.body, model.body);
+    return deepMerge(
+      body,
+      effort ? { reasoning_effort: effort } : undefined,
+      fast ? { service_tier: "fast" } : undefined,
+      ep.body,
+      model.body,
+    );
   }
 
   async function* parse(events: AsyncIterable<SseEvent>): AsyncGenerator<InferenceChunk> {

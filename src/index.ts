@@ -1,7 +1,6 @@
 import { type Disposable, definePlugin, type PluginContext } from "@valethq/sdk";
 import type { EndpointConfig, ModelApiConfig } from "./config";
 import { createProvider } from "./provider";
-import { customModels, provideSettings } from "./settings";
 
 function checkEndpoints(endpoints: EndpointConfig[]): void {
   const seen = new Set<string>();
@@ -21,17 +20,12 @@ function provideAll(ctx: PluginContext<ModelApiConfig>, config: ModelApiConfig |
     readBlob: async (id: string) =>
       Buffer.from(await Bun.file(ctx.store.blobs.path(id)).arrayBuffer()).toString("base64"),
     log: ctx.log,
-    customModels: (ep: EndpointConfig) => customModels(ctx, ep),
   };
-  return endpoints.flatMap((ep) => [
-    ctx.scopes.provide("inference", createProvider(ep, deps), { key: ep.id }),
-    provideSettings(ctx, ep),
-  ]);
+  return endpoints.map((ep) => ctx.scopes.provide("inference", createProvider(ep, deps), { key: ep.id }));
 }
 
 export default definePlugin<ModelApiConfig>({
   activate(ctx) {
-    ctx.scopes.define({ name: "settings", version: 1, cardinality: "many" });
     let provided = provideAll(ctx, ctx.config);
     ctx.onConfigChange((next) => {
       checkEndpoints(next?.endpoints ?? []);

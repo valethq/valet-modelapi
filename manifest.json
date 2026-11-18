@@ -6,53 +6,153 @@
   "description": "inference@1 model providers for OpenAI-compatible and Anthropic Messages-compatible APIs.",
   "valet": "^0.1.0",
   "main": "./src/index.ts",
-  "provides": ["inference@1", "settings@1"],
+  "provides": ["inference@1"],
   "configSchema": {
     "type": "object",
     "additionalProperties": false,
+    "x-group": "providers",
+    "x-icon": "cpu",
+    "x-order": 20,
     "properties": {
       "endpoints": {
         "type": "array",
+        "title": "Endpoints",
+        "description": "Each entry becomes its own inference provider, keyed by id.",
+        "default": [],
         "items": {
           "type": "object",
           "required": ["id", "api", "baseUrl"],
           "additionalProperties": false,
           "properties": {
-            "id": { "type": "string" },
-            "label": { "type": "string" },
-            "api": { "type": "string", "enum": ["openai", "anthropic"] },
-            "baseUrl": { "type": "string" },
-            "apiKeySecret": { "type": "string" },
-            "auth": { "type": "string", "enum": ["bearer", "x-api-key"] },
-            "headers": { "type": "object" },
-            "body": { "type": "object" },
-            "promptCache": { "type": "boolean" },
-            "utilityModel": { "type": "string" },
-            "retries": { "type": "number" },
+            "id": {
+              "type": "string",
+              "title": "Provider id",
+              "description": "Unique key sessions pick as { provider, model }.",
+              "minLength": 1
+            },
+            "label": {
+              "type": "string",
+              "title": "Label",
+              "description": "Friendly name in the model picker."
+            },
+            "api": {
+              "type": "string",
+              "title": "API",
+              "description": "Wire protocol for this endpoint.",
+              "enum": ["openai", "anthropic"],
+              "enumNames": ["OpenAI Chat Completions", "Anthropic Messages"]
+            },
+            "baseUrl": {
+              "type": "string",
+              "title": "Base URL",
+              "description": "Includes the version path, e.g. https://api.openai.com/v1."
+            },
+            "apiKeySecret": {
+              "type": "string",
+              "title": "API key secret",
+              "description": "Secret name (~/.valet/secrets/<name>, then env <NAME>). Omit for keyless local servers.",
+              "x-widget": "secret"
+            },
+            "auth": {
+              "type": "string",
+              "title": "Auth header",
+              "description": "How the key is sent. Default: bearer for openai, x-api-key for anthropic.",
+              "enum": ["bearer", "x-api-key"],
+              "enumNames": ["Bearer", "x-api-key"],
+              "x-advanced": true
+            },
+            "headers": {
+              "type": "object",
+              "title": "Extra headers",
+              "description": "Merged into every request, e.g. anthropic-beta.",
+              "additionalProperties": { "type": "string" },
+              "x-advanced": true
+            },
+            "body": {
+              "type": "object",
+              "title": "Request body defaults",
+              "description": "Deep-merged into every request (thinking config, sampling, provider routing).",
+              "x-advanced": true
+            },
+            "promptCache": {
+              "type": "boolean",
+              "title": "Prompt cache",
+              "description": "Anthropic: cache_control on the system prompt and the last message.",
+              "default": true,
+              "x-advanced": true
+            },
+            "utilityModel": {
+              "type": "string",
+              "title": "Utility model",
+              "description": "Model for side jobs such as session naming. Empty turns them off."
+            },
+            "retries": {
+              "type": "number",
+              "title": "Retries",
+              "description": "Retries on 408/409/429/5xx/529 and connection errors before the stream starts.",
+              "minimum": 0,
+              "default": 2,
+              "x-advanced": true
+            },
             "customModels": {
               "type": "array",
-              "items": {
-                "type": "object",
-                "required": ["id"],
-                "additionalProperties": false,
-                "properties": { "id": { "type": "string" }, "name": { "type": "string" } }
-              }
-            },
-            "models": {
-              "type": "array",
+              "title": "Custom models",
+              "description": "Extra models for the picker. The id is sent to the endpoint as is.",
               "items": {
                 "type": "object",
                 "required": ["id"],
                 "additionalProperties": false,
                 "properties": {
-                  "id": { "type": "string" },
-                  "name": { "type": "string" },
-                  "contextWindow": { "type": "number" },
-                  "maxOutputTokens": { "type": "number" },
-                  "input": { "type": "array", "items": { "type": "string", "enum": ["text", "image"] } },
-                  "reasoning": { "type": "boolean" },
-                  "efforts": { "type": "array", "items": { "type": "string" } },
-                  "body": { "type": "object" }
+                  "id": { "type": "string", "title": "Model id", "minLength": 1 },
+                  "name": { "type": "string", "title": "Friendly name" }
+                }
+              }
+            },
+            "models": {
+              "type": "array",
+              "title": "Models",
+              "description": "The picker list. Unset discovers GET <baseUrl>/models. Each model is listed once; effort and fast mode are options.",
+              "items": {
+                "type": "object",
+                "required": ["id"],
+                "additionalProperties": false,
+                "properties": {
+                  "id": { "type": "string", "title": "Model id", "minLength": 1 },
+                  "name": { "type": "string", "title": "Name" },
+                  "contextWindow": { "type": "number", "title": "Context window", "minimum": 1 },
+                  "maxOutputTokens": { "type": "number", "title": "Max output", "minimum": 1 },
+                  "input": {
+                    "type": "array",
+                    "title": "Input modalities",
+                    "items": { "type": "string", "enum": ["text", "image"] }
+                  },
+                  "reasoning": { "type": "boolean", "title": "Reasoning model" },
+                  "efforts": {
+                    "type": "array",
+                    "title": "Efforts",
+                    "description": "Levels the model takes, lowest first. Chosen via ModelOptions.effort.",
+                    "items": { "type": "string" }
+                  },
+                  "defaultEffort": {
+                    "type": "string",
+                    "title": "Default effort",
+                    "description": "Used when a selection omits effort."
+                  },
+                  "fast": {
+                    "type": "boolean",
+                    "title": "Fast mode",
+                    "description": "OpenAI: service_tier=fast; Anthropic: speed=fast."
+                  },
+                  "fastByDefault": {
+                    "type": "boolean",
+                    "title": "Fast by default",
+                    "description": "Fast mode is on unless the selection turns it off."
+                  },
+                  "body": {
+                    "type": "object",
+                    "title": "Per-model body",
+                    "description": "Deep-merged after the endpoint body."
+                  }
                 }
               }
             }
