@@ -1,7 +1,7 @@
 import type { InferenceChunk, InferenceRequest, Logger, ModelProvider, UtilityModel } from "@valethq/sdk";
 import type { Adapter } from "./adapter";
 import { anthropicAdapter } from "./anthropic";
-import type { EndpointConfig } from "./config";
+import type { CustomModel, EndpointConfig } from "./config";
 import { apiHeaders, apiUrl, type Fetch, send } from "./http";
 import { modelCatalog } from "./models";
 import { openaiAdapter } from "./openai";
@@ -13,6 +13,8 @@ export interface ProviderDeps {
   apiKey(name: string): Promise<string | undefined>;
   readBlob: BlobReader;
   log: Logger;
+  /** Models the user added in the endpoint's settings panel. */
+  customModels?(ep: EndpointConfig): CustomModel[];
 }
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -21,7 +23,13 @@ export function createProvider(ep: EndpointConfig, deps: ProviderDeps): ModelPro
   const adapter: Adapter =
     ep.api === "anthropic" ? anthropicAdapter(ep, deps.readBlob) : openaiAdapter(ep, deps.readBlob);
   const apiKey = () => (ep.apiKeySecret ? deps.apiKey(ep.apiKeySecret) : Promise.resolve(undefined));
-  const catalog = modelCatalog(ep, deps.fetch, apiKey, deps.log.warn.bind(deps.log));
+  const catalog = modelCatalog(
+    ep,
+    deps.fetch,
+    apiKey,
+    deps.log.warn.bind(deps.log),
+    () => deps.customModels?.(ep) ?? [],
+  );
 
   async function* stream(req: InferenceRequest, signal: AbortSignal): AsyncGenerator<InferenceChunk> {
     try {

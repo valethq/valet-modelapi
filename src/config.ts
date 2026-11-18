@@ -13,6 +13,12 @@ export interface ModelConfig {
   body?: Record<string, unknown>;
 }
 
+/** A model the user adds by hand; `id` is sent to the endpoint unchanged, `name` is the picker label. */
+export interface CustomModel {
+  id: string;
+  name?: string;
+}
+
 export interface EndpointConfig {
   /** Provider key, e.g. "cliproxy". Sessions pick models as { provider: id, model }. */
   id: string;
@@ -35,6 +41,8 @@ export interface EndpointConfig {
   retries?: number;
   /** Unset = discovered from GET <baseUrl>/models. */
   models?: ModelConfig[];
+  /** Extra picker entries added to the model list. Also in the endpoint's settings panel. */
+  customModels?: CustomModel[];
 }
 
 export interface ModelApiConfig {

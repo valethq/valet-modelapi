@@ -6,7 +6,7 @@
   "description": "inference@1 model providers for OpenAI-compatible and Anthropic Messages-compatible APIs.",
   "valet": "^0.1.0",
   "main": "./src/index.ts",
-  "provides": ["inference@1"],
+  "provides": ["inference@1", "settings@1"],
   "configSchema": {
     "type": "object",
     "additionalProperties": false,
@@ -29,6 +29,15 @@
             "promptCache": { "type": "boolean" },
             "utilityModel": { "type": "string" },
             "retries": { "type": "number" },
+            "customModels": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["id"],
+                "additionalProperties": false,
+                "properties": { "id": { "type": "string" }, "name": { "type": "string" } }
+              }
+            },
             "models": {
               "type": "array",
               "items": {

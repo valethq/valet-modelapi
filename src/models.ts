@@ -1,5 +1,11 @@
 import type { ModelInfo } from "@valethq/sdk";
-import { DEFAULT_CONTEXT_WINDOW, DEFAULT_MAX_OUTPUT, type EndpointConfig, type ModelConfig } from "./config";
+import {
+  type CustomModel,
+  DEFAULT_CONTEXT_WINDOW,
+  DEFAULT_MAX_OUTPUT,
+  type EndpointConfig,
+  type ModelConfig,
+} from "./config";
 import { apiHeaders, apiUrl, type Fetch, send } from "./http";
 
 export interface ResolvedModel {
@@ -62,6 +68,7 @@ export function modelCatalog(
   doFetch: Fetch,
   apiKey: () => Promise<string | undefined>,
   warn: (msg: string, data: Record<string, unknown>) => void,
+  custom: () => CustomModel[] = () => [],
 ) {
   let cache: { at: number; ttl: number; models: ResolvedModel[] } | undefined;
 
@@ -75,7 +82,19 @@ export function modelCatalog(
       .flatMap((m) => toInfos(fromListing(ep, m)));
   }
 
+  /** Custom models are appended; one that shares an id with a listed model is skipped. */
   async function all(): Promise<ResolvedModel[]> {
+    const listed = await listedModels();
+    const seen = new Set(listed.map((m) => m.info.id));
+    return [
+      ...listed,
+      ...custom()
+        .filter((m) => !seen.has(m.id))
+        .flatMap(toInfos),
+    ];
+  }
+
+  async function listedModels(): Promise<ResolvedModel[]> {
     if (ep.models) return ep.models.flatMap(toInfos);
     if (cache && Date.now() - cache.at < cache.ttl) return cache.models;
     try {
