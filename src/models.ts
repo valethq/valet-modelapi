@@ -1,16 +1,21 @@
-import type { ModelInfo } from "@valethq/sdk";
-import { DEFAULT_CONTEXT_WINDOW, DEFAULT_MAX_OUTPUT, type EndpointConfig, type ModelConfig } from "./config";
+import type { InferenceRequest, ModelInfo } from "@valethq/sdk";
+import {
+  type CustomModel,
+  DEFAULT_CONTEXT_WINDOW,
+  DEFAULT_MAX_OUTPUT,
+  type EndpointConfig,
+  type ModelConfig,
+} from "./config";
 import { apiHeaders, apiUrl, type Fetch, send } from "./http";
 
 export interface ResolvedModel {
   info: ModelInfo;
-  /** The model id sent to the API, without the effort suffix. */
+  /** The model id sent to the API. */
   apiModel: string;
-  effort?: string;
   body?: Record<string, unknown>;
 }
 
-function baseInfo(m: ModelConfig): ModelInfo {
+export function toModelInfo(m: ModelConfig): ModelInfo {
   return {
     id: m.id,
     name: m.name ?? m.id,
@@ -18,18 +23,22 @@ function baseInfo(m: ModelConfig): ModelInfo {
     maxOutputTokens: m.maxOutputTokens ?? DEFAULT_MAX_OUTPUT,
     input: m.input ?? ["text"],
     reasoning: m.reasoning ?? (m.efforts?.length ?? 0) > 0,
+    ...(m.efforts?.length ? { efforts: m.efforts } : {}),
+    ...(m.defaultEffort ? { defaultEffort: m.defaultEffort } : {}),
+    ...(m.fast ? { fast: true } : {}),
+    ...(m.fastByDefault ? { fastByDefault: true } : {}),
   };
 }
 
-function toInfos(m: ModelConfig): ResolvedModel[] {
-  const info = baseInfo(m);
-  const base = { apiModel: m.id, ...(m.body && { body: m.body }) };
-  if (!m.efforts?.length) return [{ ...base, info }];
-  return m.efforts.map((effort) => ({
-    ...base,
-    effort,
-    info: { ...info, id: `${m.id}-${effort}`, name: `${info.name} (${effort})` },
-  }));
+function toResolved(m: ModelConfig): ResolvedModel {
+  return { apiModel: m.id, info: toModelInfo(m), ...(m.body && { body: m.body }) };
+}
+
+/** Effort and fast mode from the request, falling back to the model's defaults. */
+export function wireOptions(req: InferenceRequest, model: ResolvedModel): { effort?: string; fast: boolean } {
+  const effort = req.effort ?? model.info.defaultEffort;
+  const fast = model.info.fast === true && (req.fast ?? model.info.fastByDefault) === true;
+  return { ...(effort !== undefined ? { effort } : {}), fast };
 }
 
 interface ListedModel {
@@ -62,6 +71,7 @@ export function modelCatalog(
   doFetch: Fetch,
   apiKey: () => Promise<string | undefined>,
   warn: (msg: string, data: Record<string, unknown>) => void,
+  custom: () => CustomModel[] = () => [],
 ) {
   let cache: { at: number; ttl: number; models: ResolvedModel[] } | undefined;
 
@@ -72,11 +82,23 @@ export function modelCatalog(
     const body = (await res.json()) as { data?: ListedModel[] };
     return (body.data ?? [])
       .filter((m) => typeof m.id === "string")
-      .flatMap((m) => toInfos(fromListing(ep, m)));
+      .map((m) => toResolved(fromListing(ep, m)));
   }
 
+  /** Custom models are appended; one that shares an id with a listed model is skipped. */
   async function all(): Promise<ResolvedModel[]> {
-    if (ep.models) return ep.models.flatMap(toInfos);
+    const listed = await listedModels();
+    const seen = new Set(listed.map((m) => m.info.id));
+    return [
+      ...listed,
+      ...custom()
+        .filter((m) => !seen.has(m.id))
+        .map(toResolved),
+    ];
+  }
+
+  async function listedModels(): Promise<ResolvedModel[]> {
+    if (ep.models) return ep.models.map(toResolved);
     if (cache && Date.now() - cache.at < cache.ttl) return cache.models;
     try {
       cache = { at: Date.now(), ttl: TTL_OK, models: await discover() };
@@ -90,7 +112,7 @@ export function modelCatalog(
   /** Picker id -> API model. Unknown ids pass through, so a model missing from the listing still runs. */
   async function resolve(id: string): Promise<ResolvedModel> {
     const hit = (await all()).find((m) => m.info.id === id);
-    return hit ?? { apiModel: id, info: baseInfo({ id }) };
+    return hit ?? { apiModel: id, info: toModelInfo({ id }) };
   }
 
   return { list: async () => (await all()).map((m) => m.info), resolve };

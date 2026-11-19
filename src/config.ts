@@ -7,10 +7,22 @@ export interface ModelConfig {
   maxOutputTokens?: number;
   input?: ("text" | "image")[];
   reasoning?: boolean;
-  /** Effort levels offered as picker entries "<id>-<effort>"; sent as reasoning_effort / output_config.effort. */
+  /** Effort levels the model takes; listed once on ModelInfo, chosen via InferenceRequest.effort. */
   efforts?: string[];
+  /** Effort used when the request omits one. */
+  defaultEffort?: string;
+  /** The model has a fast mode (OpenAI service_tier / Anthropic speed). */
+  fast?: boolean;
+  /** Fast mode is on unless the request turns it off. */
+  fastByDefault?: boolean;
   /** Deep-merged into every request body for this model, after the endpoint's `body`. */
   body?: Record<string, unknown>;
+}
+
+/** A model the user adds by hand; `id` is sent to the endpoint unchanged, `name` is the picker label. */
+export interface CustomModel {
+  id: string;
+  name?: string;
 }
 
 export interface EndpointConfig {
@@ -35,6 +47,8 @@ export interface EndpointConfig {
   retries?: number;
   /** Unset = discovered from GET <baseUrl>/models. */
   models?: ModelConfig[];
+  /** Extra picker entries added to the model list. */
+  customModels?: CustomModel[];
 }
 
 export interface ModelApiConfig {

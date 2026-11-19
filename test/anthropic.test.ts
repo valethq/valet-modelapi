@@ -123,13 +123,28 @@ test("replays the streamed turn verbatim and merges tool results into one user m
   ]);
 });
 
-test("effort suffix goes to output_config, merged with endpoint body", async () => {
+test("effort and fast options go to output_config and speed, merged with endpoint body", async () => {
   const { p } = provider({
     api: "anthropic",
     baseUrl: srv.url,
     body: { thinking: { type: "adaptive", display: "summarized" }, output_config: { x: 1 } },
-    models: [{ id: "claude-opus-5-5", maxOutputTokens: 64000, efforts: ["low", "max"] }],
+    models: [
+      {
+        id: "claude-opus-5-5",
+        maxOutputTokens: 64000,
+        efforts: ["low", "max"],
+        fast: true,
+      },
+    ],
   });
+  expect(await p.listModels()).toEqual([
+    expect.objectContaining({
+      id: "claude-opus-5-5",
+      efforts: ["low", "max"],
+      fast: true,
+      reasoning: true,
+    }),
+  ]);
   srv.reply(
     sse([
       { type: "message_start", message: { usage: { input_tokens: 1 } } },
@@ -138,7 +153,10 @@ test("effort suffix goes to output_config, merged with endpoint body", async () 
     ]),
   );
   const out = await collect(
-    p.stream(request([user("q")], { model: "claude-opus-5-5-max", tools: [] }), new AbortController().signal),
+    p.stream(
+      request([user("q")], { model: "claude-opus-5-5", effort: "max", fast: true, tools: [] }),
+      new AbortController().signal,
+    ),
   );
   expect(out.at(-1)).toEqual({ type: "finish", reason: "length" });
   const body = srv.requests.at(-1)?.body;
@@ -147,6 +165,7 @@ test("effort suffix goes to output_config, merged with endpoint body", async () 
     max_tokens: 64000,
     thinking: { type: "adaptive", display: "summarized" },
     output_config: { effort: "max", x: 1 },
+    speed: "fast",
   });
   expect(body.tools).toBeUndefined();
 });

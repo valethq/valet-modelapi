@@ -5,7 +5,12 @@ Chat Completions API or Anthropic Messages-compatible API. valet-agent runs the 
 valet-contextmanager owns the history; this plugin only translates requests and streams.
 
 Each entry in `endpoints` becomes its own provider, keyed by its `id`, so a session picks
-`{ "provider": "<id>", "model": "<model id>" }` and fallbacks can cross endpoints.
+`{ "provider": "<id>", "model": "<model id>", "effort"?: "...", "fast"?: true }` and fallbacks can
+cross endpoints. Effort and fast mode are `ModelOptions` on the request — never model-id suffixes.
+`listModels` lists each model once with its `efforts` / `fast` flags.
+
+Settings are the plugin's config (`configSchema` / `ctx.config`). There is no separate settings
+panel: edit endpoints, models and custom models in config (or the UI's config form).
 
 No runtime dependencies: both wire protocols are spoken over `fetch` + a small SSE reader, so the
 same code works against first-party APIs and the many servers that only imitate them (CLIProxyAPI,
@@ -41,7 +46,9 @@ OpenRouter, vLLM, llama.cpp, LiteLLM, DeepSeek, ...).
                 "contextWindow": 1000000,
                 "maxOutputTokens": 64000,
                 "input": ["text", "image"],
-                "efforts": ["low", "medium", "high", "xhigh", "max"]
+                "efforts": ["low", "medium", "high", "xhigh", "max"],
+                "defaultEffort": "medium",
+                "fast": true
               }
             ]
           }
@@ -52,24 +59,31 @@ OpenRouter, vLLM, llama.cpp, LiteLLM, DeepSeek, ...).
 }
 ```
 
-| Field              | Meaning                                                                                         |
-| ------------------ | ----------------------------------------------------------------------------------------------- |
-| `id`               | Provider key (required, unique).                                                                |
-| `api`              | `"openai"` (POST `/chat/completions`) or `"anthropic"` (POST `/messages`).                      |
-| `baseUrl`          | Includes the version path, e.g. `https://api.openai.com/v1`.                                    |
-| `apiKeySecret`     | Secret name: `~/.valet/secrets/<name>`, then env `<NAME>`. Omit for keyless local servers.      |
-| `auth`             | `"bearer"` or `"x-api-key"`. Default: bearer for openai, x-api-key for anthropic.               |
-| `headers`          | Extra headers, e.g. `anthropic-beta`, `HTTP-Referer`.                                           |
-| `body`             | Deep-merged into every request (thinking config, `fallbacks`, provider routing, sampling).      |
-| `models`           | The picker list. Unset = `GET <baseUrl>/models`, cached 10 min. Unknown ids still pass through. |
-| `models[].efforts` | Adds picker entries `<id>-<effort>`; sent as `reasoning_effort` / `output_config.effort`.       |
-| `models[].body`    | Per-model request overrides, merged after the endpoint's `body`.                                |
-| `promptCache`      | Anthropic: `cache_control` on the system prompt and the last message. Default `true`.           |
-| `utilityModel`     | Model for side jobs such as session naming. Unset = none.                                       |
-| `retries`          | Retries on 408/409/429/5xx/529 and connection errors before the stream starts. Default 2.       |
+| Field                    | Meaning                                                                                                           |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| `id`                     | Provider key (required, unique).                                                                                  |
+| `api`                    | `"openai"` (POST `/chat/completions`) or `"anthropic"` (POST `/messages`).                                        |
+| `baseUrl`                | Includes the version path, e.g. `https://api.openai.com/v1`.                                                      |
+| `apiKeySecret`           | Secret name: `~/.valet/secrets/<name>`, then env `<NAME>`. Omit for keyless local servers.                        |
+| `auth`                   | `"bearer"` or `"x-api-key"`. Default: bearer for openai, x-api-key for anthropic.                                 |
+| `headers`                | Extra headers, e.g. `anthropic-beta`, `HTTP-Referer`.                                                             |
+| `body`                   | Deep-merged into every request (thinking config, `fallbacks`, provider routing, sampling).                        |
+| `models`                 | The picker list. Unset = `GET <baseUrl>/models`, cached 10 min. Unknown ids still pass through.                   |
+| `models[].efforts`       | Effort levels on `ModelInfo`; chosen via `InferenceRequest.effort` → `reasoning_effort` / `output_config.effort`. |
+| `models[].defaultEffort` | Effort used when the request omits one.                                                                           |
+| `models[].fast`          | Model offers fast mode → OpenAI `service_tier: "fast"`, Anthropic `speed: "fast"`.                                |
+| `models[].fastByDefault` | Fast mode on unless the request turns it off.                                                                     |
+| `models[].body`          | Per-model request overrides, merged after the endpoint's `body`.                                                  |
+| `customModels`           | Extra picker entries (id sent as is).                                                                             |
+| `promptCache`            | Anthropic: `cache_control` on the system prompt and the last message. Default `true`.                             |
+| `utilityModel`           | Model for side jobs such as session naming. Unset = none.                                                         |
+| `retries`                | Retries on 408/409/429/5xx/529 and connection errors before the stream starts. Default 2.                         |
 
 ## Behaviour notes
 
+- **Effort / fast.** Sent as request options, not id suffixes. OpenAI gets `reasoning_effort` and
+  (when fast) `service_tier: "fast"`; Anthropic gets `output_config.effort` and (when fast) `speed: "fast"`.
+  Legacy ids like `claude-opus-5-5-high` are rewritten by valet-agent before they reach this plugin.
 - **Usage.** `inputTokens` is uncached input (Anthropic: `input_tokens + cache_creation_input_tokens`;
   OpenAI: `prompt_tokens - cached_tokens`), `cacheReadTokens` the cached part, so valet-agent's
   `contextTokens` is the full prompt.
@@ -85,4 +99,5 @@ OpenRouter, vLLM, llama.cpp, LiteLLM, DeepSeek, ...).
 - **OpenAI token cap.** No `max_tokens`/`max_completion_tokens` is sent by default, since servers
   disagree on which one they accept; set it in `body` if you want one. Anthropic always gets
   `max_tokens` (the model's `maxOutputTokens`, default 32000).
-- Anthropic requests send `anthropic-version: 2023-06-01`; override it in `headers`.
+- Anthropic requests send `anthropic-version: 2023-06-01`; override it in `headers`. Some Anthropic
+  fast-mode models also need a beta header — set that in `headers` when required.

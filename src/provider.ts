@@ -21,7 +21,13 @@ export function createProvider(ep: EndpointConfig, deps: ProviderDeps): ModelPro
   const adapter: Adapter =
     ep.api === "anthropic" ? anthropicAdapter(ep, deps.readBlob) : openaiAdapter(ep, deps.readBlob);
   const apiKey = () => (ep.apiKeySecret ? deps.apiKey(ep.apiKeySecret) : Promise.resolve(undefined));
-  const catalog = modelCatalog(ep, deps.fetch, apiKey, deps.log.warn.bind(deps.log));
+  const catalog = modelCatalog(
+    ep,
+    deps.fetch,
+    apiKey,
+    deps.log.warn.bind(deps.log),
+    () => ep.customModels ?? [],
+  );
 
   async function* stream(req: InferenceRequest, signal: AbortSignal): AsyncGenerator<InferenceChunk> {
     try {
