@@ -98,7 +98,8 @@ export function modelCatalog(
   }
 
   async function listedModels(): Promise<ResolvedModel[]> {
-    if (ep.models) return ep.models.map(toResolved);
+    // An empty list means unset (v3's "empty clears"), so discovery still runs.
+    if (ep.models?.length) return ep.models.map(toResolved);
     if (cache && Date.now() - cache.at < cache.ttl) return cache.models;
     try {
       cache = { at: Date.now(), ttl: TTL_OK, models: await discover() };
