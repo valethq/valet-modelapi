@@ -97,8 +97,7 @@
                       },
                       {
                         "id": "body",
-                        "type": "group",
-                        "inputs": [],
+                        "type": "map",
                         "label": "Request body defaults",
                         "summary": "Deep-merged into every request (thinking config, sampling, provider routing)."
                       },
@@ -220,8 +219,7 @@
                             },
                             {
                               "id": "body",
-                              "type": "group",
-                              "inputs": [],
+                              "type": "map",
                               "label": "Per-model body",
                               "summary": "Deep-merged after the endpoint body."
                             }
