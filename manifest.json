@@ -7,157 +7,238 @@
   "valet": "^0.1.0",
   "main": "./src/index.ts",
   "provides": ["inference@1"],
-  "configSchema": {
-    "type": "object",
-    "additionalProperties": false,
-    "x-group": "inference",
-    "x-icon": "cpu",
-    "x-order": 20,
-    "properties": {
-      "endpoints": {
-        "type": "array",
-        "title": "Endpoints",
-        "description": "Each entry becomes its own inference provider, keyed by id.",
-        "default": [],
-        "items": {
-          "type": "object",
-          "required": ["id", "api", "baseUrl"],
-          "additionalProperties": false,
-          "properties": {
-            "id": {
-              "type": "string",
-              "title": "Provider id",
-              "description": "Unique key sessions pick as { provider, model }.",
-              "minLength": 1
-            },
-            "label": {
-              "type": "string",
-              "title": "Label",
-              "description": "Friendly name in the model picker."
-            },
-            "api": {
-              "type": "string",
-              "title": "API",
-              "description": "Wire protocol for this endpoint.",
-              "enum": ["openai", "anthropic"],
-              "enumNames": ["OpenAI Chat Completions", "Anthropic Messages"]
-            },
-            "baseUrl": {
-              "type": "string",
-              "title": "Base URL",
-              "description": "Includes the version path, e.g. https://api.openai.com/v1."
-            },
-            "apiKeySecret": {
-              "type": "string",
-              "title": "API key secret",
-              "description": "Secret name (~/.valet/secrets/<name>, then env <NAME>). Omit for keyless local servers.",
-              "x-widget": "secret"
-            },
-            "auth": {
-              "type": "string",
-              "title": "Auth header",
-              "description": "How the key is sent. Default: bearer for openai, x-api-key for anthropic.",
-              "enum": ["bearer", "x-api-key"],
-              "enumNames": ["Bearer", "x-api-key"],
-              "x-advanced": true
-            },
-            "headers": {
-              "type": "object",
-              "title": "Extra headers",
-              "description": "Merged into every request, e.g. anthropic-beta.",
-              "additionalProperties": { "type": "string" },
-              "x-advanced": true
-            },
-            "body": {
-              "type": "object",
-              "title": "Request body defaults",
-              "description": "Deep-merged into every request (thinking config, sampling, provider routing).",
-              "x-advanced": true
-            },
-            "promptCache": {
-              "type": "boolean",
-              "title": "Prompt cache",
-              "description": "Anthropic: cache_control on the system prompt and the last message.",
-              "default": true,
-              "x-advanced": true
-            },
-            "utilityModel": {
-              "type": "string",
-              "title": "Utility model",
-              "description": "Model for side jobs such as session naming. Empty turns them off."
-            },
-            "retries": {
-              "type": "number",
-              "title": "Retries",
-              "description": "Retries on 408/409/429/5xx/529 and connection errors before the stream starts.",
-              "minimum": 0,
-              "default": 2,
-              "x-advanced": true
-            },
-            "customModels": {
-              "type": "array",
-              "title": "Custom models",
-              "description": "Extra models for the picker. The id is sent to the endpoint as is.",
-              "items": {
-                "type": "object",
-                "required": ["id"],
-                "additionalProperties": false,
-                "properties": {
-                  "id": { "type": "string", "title": "Model id", "minLength": 1 },
-                  "name": { "type": "string", "title": "Friendly name" }
+  "settings": {
+    "sections": {
+      "inference": {
+        "subsections": [
+          {
+            "id": "endpoints",
+            "label": "Endpoints",
+            "items": [
+              {
+                "id": "endpoints",
+                "label": "Endpoints",
+                "summary": "Each entry becomes its own inference provider, keyed by id.",
+                "input": {
+                  "type": "list",
+                  "item": {
+                    "type": "group",
+                    "inputs": [
+                      {
+                        "id": "id",
+                        "type": "string",
+                        "minLength": 1,
+                        "label": "Provider id",
+                        "summary": "Unique key sessions pick as { provider, model }.",
+                        "required": true
+                      },
+                      {
+                        "id": "label",
+                        "type": "string",
+                        "label": "Label",
+                        "summary": "Friendly name in the model picker."
+                      },
+                      {
+                        "id": "api",
+                        "type": "select",
+                        "options": [
+                          {
+                            "value": "openai",
+                            "label": "OpenAI Chat Completions"
+                          },
+                          {
+                            "value": "anthropic",
+                            "label": "Anthropic Messages"
+                          }
+                        ],
+                        "label": "API",
+                        "summary": "Wire protocol for this endpoint.",
+                        "required": true
+                      },
+                      {
+                        "id": "baseUrl",
+                        "type": "string",
+                        "label": "Base URL",
+                        "summary": "Includes the version path, e.g. https://api.openai.com/v1.",
+                        "required": true
+                      },
+                      {
+                        "id": "apiKeySecret",
+                        "type": "strict_string",
+                        "label": "API key secret",
+                        "summary": "Secret name (~/.valet/secrets/<name>, then env <NAME>). Omit for keyless local servers.",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$",
+                        "patternHint": "a secret name"
+                      },
+                      {
+                        "id": "auth",
+                        "type": "select",
+                        "options": [
+                          {
+                            "value": "bearer",
+                            "label": "Bearer"
+                          },
+                          {
+                            "value": "x-api-key",
+                            "label": "x-api-key"
+                          }
+                        ],
+                        "label": "Auth header",
+                        "summary": "How the key is sent. Default: bearer for openai, x-api-key for anthropic."
+                      },
+                      {
+                        "id": "headers",
+                        "type": "map",
+                        "value": {
+                          "type": "string"
+                        },
+                        "label": "Extra headers",
+                        "summary": "Merged into every request, e.g. anthropic-beta."
+                      },
+                      {
+                        "id": "body",
+                        "type": "map",
+                        "label": "Request body defaults",
+                        "summary": "Deep-merged into every request (thinking config, sampling, provider routing)."
+                      },
+                      {
+                        "id": "promptCache",
+                        "type": "bool",
+                        "default": true,
+                        "label": "Prompt cache",
+                        "summary": "Anthropic: cache_control on the system prompt and the last message."
+                      },
+                      {
+                        "id": "utilityModel",
+                        "type": "string",
+                        "label": "Utility model",
+                        "summary": "Model for side jobs such as session naming. Empty turns them off."
+                      },
+                      {
+                        "id": "retries",
+                        "type": "number",
+                        "min": 0,
+                        "default": 2,
+                        "label": "Retries",
+                        "summary": "Retries on 408/409/429/5xx/529 and connection errors before the stream starts."
+                      },
+                      {
+                        "id": "customModels",
+                        "type": "list",
+                        "item": {
+                          "type": "group",
+                          "inputs": [
+                            {
+                              "id": "id",
+                              "type": "string",
+                              "minLength": 1,
+                              "label": "Model id",
+                              "required": true
+                            },
+                            {
+                              "id": "name",
+                              "type": "string",
+                              "label": "Friendly name"
+                            }
+                          ]
+                        },
+                        "label": "Custom models",
+                        "summary": "Extra models for the picker. The id is sent to the endpoint as is."
+                      },
+                      {
+                        "id": "models",
+                        "type": "list",
+                        "item": {
+                          "type": "group",
+                          "inputs": [
+                            {
+                              "id": "id",
+                              "type": "string",
+                              "minLength": 1,
+                              "label": "Model id",
+                              "required": true
+                            },
+                            {
+                              "id": "name",
+                              "type": "string",
+                              "label": "Name"
+                            },
+                            {
+                              "id": "contextWindow",
+                              "type": "number",
+                              "min": 1,
+                              "label": "Context window"
+                            },
+                            {
+                              "id": "maxOutputTokens",
+                              "type": "number",
+                              "min": 1,
+                              "label": "Max output"
+                            },
+                            {
+                              "id": "input",
+                              "type": "multiselect",
+                              "options": [
+                                {
+                                  "value": "text"
+                                },
+                                {
+                                  "value": "image"
+                                }
+                              ],
+                              "label": "Input modalities"
+                            },
+                            {
+                              "id": "reasoning",
+                              "type": "bool",
+                              "label": "Reasoning model"
+                            },
+                            {
+                              "id": "efforts",
+                              "type": "tags",
+                              "label": "Efforts",
+                              "summary": "Levels the model takes, lowest first. Chosen via ModelOptions.effort."
+                            },
+                            {
+                              "id": "defaultEffort",
+                              "type": "string",
+                              "label": "Default effort",
+                              "summary": "Used when a selection omits effort."
+                            },
+                            {
+                              "id": "fast",
+                              "type": "bool",
+                              "label": "Fast mode",
+                              "summary": "OpenAI: service_tier=fast; Anthropic: speed=fast."
+                            },
+                            {
+                              "id": "fastByDefault",
+                              "type": "bool",
+                              "label": "Fast by default",
+                              "summary": "Fast mode is on unless the selection turns it off."
+                            },
+                            {
+                              "id": "body",
+                              "type": "map",
+                              "label": "Per-model body",
+                              "summary": "Deep-merged after the endpoint body."
+                            }
+                          ]
+                        },
+                        "label": "Models",
+                        "summary": "The picker list. Unset discovers GET <baseUrl>/models. Each model is listed once; effort and fast mode are options."
+                      }
+                    ]
+                  },
+                  "default": [],
+                  "addLabel": "Add endpoint"
                 }
               }
-            },
-            "models": {
-              "type": "array",
-              "title": "Models",
-              "description": "The picker list. Unset discovers GET <baseUrl>/models. Each model is listed once; effort and fast mode are options.",
-              "items": {
-                "type": "object",
-                "required": ["id"],
-                "additionalProperties": false,
-                "properties": {
-                  "id": { "type": "string", "title": "Model id", "minLength": 1 },
-                  "name": { "type": "string", "title": "Name" },
-                  "contextWindow": { "type": "number", "title": "Context window", "minimum": 1 },
-                  "maxOutputTokens": { "type": "number", "title": "Max output", "minimum": 1 },
-                  "input": {
-                    "type": "array",
-                    "title": "Input modalities",
-                    "items": { "type": "string", "enum": ["text", "image"] }
-                  },
-                  "reasoning": { "type": "boolean", "title": "Reasoning model" },
-                  "efforts": {
-                    "type": "array",
-                    "title": "Efforts",
-                    "description": "Levels the model takes, lowest first. Chosen via ModelOptions.effort.",
-                    "items": { "type": "string" }
-                  },
-                  "defaultEffort": {
-                    "type": "string",
-                    "title": "Default effort",
-                    "description": "Used when a selection omits effort."
-                  },
-                  "fast": {
-                    "type": "boolean",
-                    "title": "Fast mode",
-                    "description": "OpenAI: service_tier=fast; Anthropic: speed=fast."
-                  },
-                  "fastByDefault": {
-                    "type": "boolean",
-                    "title": "Fast by default",
-                    "description": "Fast mode is on unless the selection turns it off."
-                  },
-                  "body": {
-                    "type": "object",
-                    "title": "Per-model body",
-                    "description": "Deep-merged after the endpoint body."
-                  }
-                }
-              }
-            }
+            ]
           }
-        }
+        ],
+        "icon": "cpu",
+        "order": 20
       }
     }
   }

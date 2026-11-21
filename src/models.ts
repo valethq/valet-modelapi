@@ -98,7 +98,8 @@ export function modelCatalog(
   }
 
   async function listedModels(): Promise<ResolvedModel[]> {
-    if (ep.models) return ep.models.map(toResolved);
+    // v3: unset means "discover"; an empty list is deliberate — the endpoint offers no listed models.
+    if (ep.models !== undefined) return ep.models.map(toResolved);
     if (cache && Date.now() - cache.at < cache.ttl) return cache.models;
     try {
       cache = { at: Date.now(), ttl: TTL_OK, models: await discover() };
